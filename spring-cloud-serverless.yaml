@@ -1,0 +1,144 @@
+metadata:
+  namespace: default
+  annotations:
+    accelerator.apps.tanzu.vmware.com/icon: ...
+  invocationCount: 0
+  name: spring-cloud-serverless
+  title: Spring Cloud Serverless
+  description: A simple Spring Cloud Function serverless app
+  tags:
+    - java
+    - spring
+    - cloud
+    - serverless
+    - tanzu
+  labels:
+    accelerator.apps.tanzu.vmware.com/accelerator: 'true'
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+spec:
+  type: service
+  parameters:
+    - definitions: {}
+      title: Configure accelerator
+      properties:
+        projectName:
+          title: Name
+          description: Provide a name for your new project
+          type: string
+          default: spring-cloud-serverless
+        deploymentType:
+          title: Deployment type
+          type: string
+          enum:
+            - workload
+            - k8s-simple
+            - none
+          enumNames:
+            - TAP workload
+            - Kubernetes deployment and service
+            - Skip Kubernetes deployment
+          default: workload
+          ui:widget: select
+        javaVersion:
+          title: Java version to use
+          type: string
+          enum:
+            - '1.8'
+            - '11'
+            - '17'
+          enumNames:
+            - Java 8
+            - Java 11
+            - Java 17
+          default: '11'
+          ui:widget: select
+      required:
+        - projectName
+        - deploymentType
+        - javaVersion
+      dependencies:
+        deploymentType:
+          oneOf:
+            - properties:
+                deploymentType:
+                  const: workload
+                sourceRepositoryPrefix:
+                  title: >-
+                    The source image repository prefix to use when pushing the
+                    source
+                  description: >-
+                    The prefix for the source image repository where source can
+                    be stored during development
+                  type: string
+                  default: dev.local
+              required: []
+            - properties:
+                deploymentType:
+                  not:
+                    anyOf:
+                      - const: workload
+      ui:order:
+        - projectName
+        - deploymentType
+        - sourceRepositoryPrefix
+        - javaVersion
+    - title: Git repository
+      properties:
+        _createGitRepo:
+          title: Create Git repo?
+          type: boolean
+          defaultValue: false
+      dependencies:
+        _createGitRepo:
+          oneOf:
+            - properties:
+                _createGitRepo: false
+            - properties:
+                _createGitRepo: true
+                bsGitRepository:
+                  title: Repository Location
+                  type: string
+                  ui:field: RepoUrlPicker
+                  ui:options:
+                    requestUserCredentials:
+                      secretsKey: USER_OAUTH_TOKEN
+                    allowedHosts:
+                      - github.com
+                bsGitBranch:
+                  title: Default Branch
+                  type: string
+                  default: main
+  steps:
+    - id: invoke-accelerator
+      name: invoke accelerator engine with provided parameters
+      action: vmware:accelerator
+      input:
+        url: >-
+          http://acc-server.accelerator-system.svc.cluster.local/api/accelerators/zip?name=spring-cloud-serverless
+        name: spring-cloud-serverless
+        options: ${{ parameters }}
+    - id: create-repo-github
+      name: Create github repo
+      if: >-
+        ${{ parameters['_createGitRepo'] and
+        (parameters.bsGitRepository.startsWith('github.com')) }}
+      action: publish:github
+      input:
+        repoUrl: ${{ parameters.bsGitRepository }}
+        token: ${{ secrets.USER_OAUTH_TOKEN }}
+        defaultBranch: ${{ parameters.bsGitBranch }}
+    - id: publish-zip
+      name: zip files from accelerator and make them available to download
+      action: vmware:publish-zip
+      input:
+        root-dir: ${{ parameters.projectName }}/
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['create-repo-github'].output.remoteUrl }}
+      - title: Get zip file
+        url: data:application/zip;base64,${{ steps["publish-zip"].output.file }}
+        download: ${{ parameters.projectName }}.zip
+        acceleratorName: spring-cloud-serverless
+        createdGitRepo: ${{ parameters["_createGitRepo"] }}
