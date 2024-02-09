@@ -113,7 +113,7 @@ spec:
   steps:
     - id: invoke-accelerator
       name: invoke accelerator engine with provided parameters
-      action: vmware:accelerator
+      action: vmware:accelerator-invoke
       input:
         url: >-
           http://acc-server.accelerator-system.svc.cluster.local/api/accelerators/zip?name=spring-cloud-serverless
