@@ -18,6 +18,7 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 spec:
   type: service
+  owner: default-team
   parameters:
     - definitions: {}
       title: Configure accelerator
